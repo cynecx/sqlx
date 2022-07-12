@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::error::{BoxDynError, Error};
 use crate::postgres::PgConnectOptions;
 use percent_encoding::percent_decode_str;
 use std::net::IpAddr;
@@ -92,6 +92,19 @@ impl FromStr for PgConnectOptions {
                     } else {
                         options.options = Some(value.to_string());
                     }
+                }
+
+                "schema" => {
+                    let schema = &*value;
+                    if !schema
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+                    {
+                        return Err(Error::Configuration(BoxDynError::from(
+                            "the database schema is invalid".to_string(),
+                        )));
+                    }
+                    options = options.schema(schema)
                 }
 
                 k if k.starts_with("options[") => {

@@ -28,17 +28,31 @@ impl<'s> MigrationSource<'s> for &'s Path {
             let mut s = tokio_stream::wrappers::ReadDirStream::new(s);
 
             while let Some(entry) = s.try_next().await? {
-                if !entry.metadata().await?.is_file() {
+                let metadata = entry.metadata().await?;
+
+                let inner_migration_file = if metadata.is_dir() {
+                    let mut inner = fs::read_dir(entry.path()).await?;
+                    match inner.next_entry().await {
+                        Ok(Some(migration)) if migration.file_name() == "migration.sql" => {
+                            Some(migration.path())
+                        }
+                        _ => continue,
+                    }
+                } else if metadata.is_file() {
+                    None
+                } else {
                     // not a file; ignore
                     continue;
-                }
+                };
 
                 let file_name = entry.file_name();
                 let file_name = file_name.to_string_lossy();
 
                 let parts = file_name.splitn(2, '_').collect::<Vec<_>>();
 
-                if parts.len() != 2 || !parts[1].ends_with(".sql") {
+                if parts.len() != 2
+                    || (inner_migration_file.is_none() && !parts[1].ends_with(".sql"))
+                {
                     // not of the format: <VERSION>_<DESCRIPTION>.sql; ignore
                     continue;
                 }
@@ -52,7 +66,8 @@ impl<'s> MigrationSource<'s> for &'s Path {
                     .replace('_', " ")
                     .to_owned();
 
-                let sql = fs::read_to_string(&entry.path()).await?;
+                let sql = fs::read_to_string(inner_migration_file.unwrap_or_else(|| entry.path()))
+                    .await?;
 
                 migrations.push(Migration::new(
                     version,

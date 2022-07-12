@@ -1,4 +1,4 @@
-use crate::HashMap;
+use crate::{executor::Executor, HashMap};
 
 use crate::common::StatementCache;
 use crate::error::Error;
@@ -137,7 +137,7 @@ impl PgConnection {
             }
         }
 
-        Ok(PgConnection {
+        let mut conn = PgConnection {
             stream,
             process_id,
             secret_key,
@@ -149,6 +149,13 @@ impl PgConnection {
             cache_type_oid: HashMap::new(),
             cache_type_info: HashMap::new(),
             log_settings: options.log_settings.clone(),
-        })
+        };
+
+        if let Some(schema) = options.schema.as_deref() {
+            let set_path = format!("SET search_path = '{}';", schema);
+            (&mut conn).execute(set_path.as_str()).await?;
+        }
+
+        Ok(conn)
     }
 }

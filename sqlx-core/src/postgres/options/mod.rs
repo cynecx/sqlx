@@ -90,6 +90,7 @@ pub struct PgConnectOptions {
     pub(crate) log_settings: LogSettings,
     pub(crate) extra_float_digits: Option<Cow<'static, str>>,
     pub(crate) options: Option<String>,
+    pub(crate) schema: Option<String>,
 }
 
 impl Default for PgConnectOptions {
@@ -152,6 +153,7 @@ impl PgConnectOptions {
             extra_float_digits: Some("3".into()),
             log_settings: Default::default(),
             options: var("PGOPTIONS").ok(),
+            schema: None,
         }
     }
 
@@ -430,6 +432,12 @@ impl PgConnectOptions {
 
             write!(options_str, "-c {}={}", k, v).expect("failed to write an option to the string");
         }
+        self
+    }
+
+    /// Sets the default schema.
+    pub fn schema(mut self, schema: &str) -> Self {
+        self.schema = Some(schema.to_string());
         self
     }
 
